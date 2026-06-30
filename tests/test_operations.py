@@ -214,3 +214,50 @@ class TestImageAndBreakOperations:
         ))
         assert "已完成" in result
         assert "Hi Alice" in self.doc.Content.Text
+
+
+@pytest.mark.skipif(not OPS_AVAILABLE, reason="COM tests only on Windows")
+class TestPageSetupHeaderFooter:
+    """Tests for page layout and header/footer."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        import asyncio
+        from word_mcp.com_manager import get_word_app
+        from word_mcp.tools.lifecycle import word_create
+
+        self.app = get_word_app(visible=False)
+        asyncio.run(word_create())
+        self.doc = self.app.ActiveDocument
+        self.loop = asyncio.new_event_loop()
+        yield
+        self.loop.close()
+        try:
+            self.doc.Close(SaveChanges=False)
+        except Exception:
+            pass
+
+    def _run(self, coro):
+        return self.loop.run_until_complete(coro)
+
+    def test_set_page_setup_a4_landscape(self):
+        """word_set_page_setup: set A4 landscape with custom margins."""
+        from word_mcp.tools.operations import word_set_page_setup
+
+        result = self._run(word_set_page_setup(
+            orientation="landscape",
+            page_size="A4",
+            margins={"top": 72, "bottom": 72, "left": 90, "right": 90},
+        ))
+        assert "已设置" in result
+
+    def test_set_header_footer(self):
+        """word_set_header_footer: add header with page number."""
+        from word_mcp.tools.operations import word_set_header_footer
+
+        result = self._run(word_set_header_footer(
+            type="header",
+            text="Chapter 1: Introduction",
+            include_pagenum=True,
+        ))
+        assert "已设置" in result

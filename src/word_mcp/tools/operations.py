@@ -468,6 +468,115 @@ async def word_find_replace(
         return format_error("查找替换", e)
 
 
+async def word_set_page_setup(
+    margins: dict | None = None,
+    orientation: str | None = None,
+    page_size: str | None = None,
+) -> str:
+    """设置页面布局（边距、方向、纸张大小）。
+
+    Args:
+        margins: 边距字典，单位磅（1英寸=72磅）。
+                 例: {"top": 72, "bottom": 72, "left": 90, "right": 90}
+        orientation: 纸张方向 — "portrait"(纵向), "landscape"(横向)
+        page_size: 纸张尺寸 — "A4", "A3", "Letter", "Legal"
+    """
+    try:
+        app = get_word_app()
+        doc = app.ActiveDocument
+        ps = doc.PageSetup
+        changes = []
+
+        if margins:
+            if "top" in margins:
+                ps.TopMargin = margins["top"]
+                changes.append(f"上边距={margins['top']}pt")
+            if "bottom" in margins:
+                ps.BottomMargin = margins["bottom"]
+                changes.append(f"下边距={margins['bottom']}pt")
+            if "left" in margins:
+                ps.LeftMargin = margins["left"]
+                changes.append(f"左边距={margins['left']}pt")
+            if "right" in margins:
+                ps.RightMargin = margins["right"]
+                changes.append(f"右边距={margins['right']}pt")
+
+        if orientation:
+            ps.Orientation = 1 if orientation == "landscape" else 0
+            changes.append(f"方向={orientation}")
+
+        if page_size:
+            page_sizes = {
+                "A4": (595.3, 841.9),
+                "A3": (841.9, 1190.5),
+                "Letter": (612, 792),
+                "Legal": (612, 1008),
+            }
+            if page_size in page_sizes:
+                w, h = page_sizes[page_size]
+                ps.PageWidth = w
+                ps.PageHeight = h
+                changes.append(f"纸张={page_size}")
+
+        if changes:
+            return f"已设置页面: {', '.join(changes)}"
+        return "未指定任何页面设置参数"
+    except Exception as e:
+        return format_error("设置页面", e)
+
+
+async def word_set_header_footer(
+    type: str = "header",
+    text: str = "",
+    include_pagenum: bool = False,
+) -> str:
+    """设置页眉或页脚内容。
+
+    Args:
+        type: "header"(页眉) 或 "footer"(页脚)
+        text: 页眉/页脚的文字内容
+        include_pagenum: 是否添加页码
+    """
+    try:
+        app = get_word_app()
+        doc = app.ActiveDocument
+
+        section = doc.Sections(1)
+        if type == "header":
+            hf = section.Headers(1)  # wdHeaderFooterPrimary
+            label = "页眉"
+        else:
+            hf = section.Footers(1)  # wdHeaderFooterPrimary
+            label = "页脚"
+
+        rng = hf.Range
+
+        if text:
+            rng.Text = text
+
+        if include_pagenum:
+            if text:
+                rng.InsertAfter("  ")
+                rng.Collapse(0)  # wdCollapseEnd
+
+            rng.InsertAfter("第 ")
+            rng.Collapse(0)
+            doc.Fields.Add(rng, 33)  # wdFieldPage
+            rng.InsertAfter(" 页 / 共 ")
+            rng.Collapse(0)
+            doc.Fields.Add(rng, 26)  # wdFieldNumPages
+            rng.InsertAfter(" 页")
+
+        parts = []
+        if text:
+            parts.append(f"内容='{text}'")
+        if include_pagenum:
+            parts.append("含页码")
+        return f"已设置{label}: {', '.join(parts)}"
+    except Exception as e:
+        return format_error(f"设置{type}", e)
+
+
 def register_operation_tools(mcp: FastMCP):
     """Register all L2 atomic operation tools on the MCP server."""
     mcp.tool()(word_insert_text)
@@ -485,3 +594,7 @@ def register_operation_tools(mcp: FastMCP):
     mcp.tool()(word_insert_image)
     mcp.tool()(word_insert_page_break)
     mcp.tool()(word_find_replace)
+
+    # === Batch C: Page Setup, Header/Footer ===
+    mcp.tool()(word_set_page_setup)
+    mcp.tool()(word_set_header_footer)
