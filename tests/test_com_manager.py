@@ -16,6 +16,7 @@ class TestGetWordApp:
         app = get_word_app(visible=False)
         assert app is not None
         assert "Word" in app.Name
+        assert app.Visible is False
 
     def test_returns_cached_instance(self):
         """Second call should return same instance without re-creating."""
@@ -37,3 +38,15 @@ class TestGetWordApp:
 
         app = get_word_app(visible=True)
         assert app.Visible is True
+
+    def test_release_word_clears_instance(self):
+        """release_word() should clear cached instance so next call creates fresh."""
+        if sys.platform != "win32":
+            pytest.skip("COM tests only run on Windows")
+
+        from word_mcp.com_manager import get_word_app, release_word
+
+        app1 = get_word_app(visible=False)
+        release_word()
+        app2 = get_word_app(visible=False)
+        assert app1 is not app2
