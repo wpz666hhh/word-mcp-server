@@ -17,6 +17,20 @@ async def word_open(file_path: str) -> str:
     try:
         app = get_word_app()
         path = os.path.abspath(os.path.expandvars(os.path.expanduser(file_path)))
+        norm_path = os.path.normcase(os.path.normpath(path))
+
+        # Check if already open — if so, just activate it
+        for i in range(1, app.Documents.Count + 1):
+            doc = app.Documents(i)
+            try:
+                doc_path = os.path.normcase(os.path.normpath(doc.FullName))
+                if doc_path == norm_path:
+                    doc.Activate()
+                    pages = doc.Content.ComputeStatistics(2)
+                    return f"文档已打开，已激活: {doc.Name}（共 {pages} 页）"
+            except Exception:
+                pass  # unsaved docs may not have FullName
+
         doc = app.Documents.Open(path)
         pages = doc.Content.ComputeStatistics(2)  # wdStatisticPages
         return f"已打开文档: {doc.Name}（共 {pages} 页）"
@@ -133,6 +147,58 @@ async def word_get_active_document() -> str:
         return format_error("获取文档信息", e)
 
 
+async def word_list_documents() -> str:
+    """列出 Word 中当前所有已打开的文档。
+
+    Returns:
+        每行一个文档，格式: "序号. 文档名 — 路径（当前活动文档标有 *）"
+    """
+    try:
+        app = get_word_app()
+        count = app.Documents.Count
+        if count == 0:
+            return "Word 中没有打开的文档"
+
+        active_name = app.ActiveDocument.Name if app.ActiveDocument else ""
+        lines = []
+        for i in range(1, count + 1):
+            doc = app.Documents(i)
+            try:
+                path = doc.FullName or "(未保存)"
+            except Exception:
+                path = "(未保存)"
+            marker = " *" if doc.Name == active_name else ""
+            lines.append(f"{i}. {doc.Name} — {path}{marker}")
+
+        header = f"共 {count} 个文档（* 表示当前活动文档）:\n"
+        return header + "\n".join(lines)
+    except Exception as e:
+        return format_error("列出文档", e)
+
+
+async def word_activate_document(index: int) -> str:
+    """激活（切换到）指定的已打开文档。
+
+    Args:
+        index: 文档序号，与 word_list_documents 返回的序号一致（1-based）。
+    """
+    try:
+        app = get_word_app()
+        count = app.Documents.Count
+        if count == 0:
+            return "Word 中没有打开的文档"
+        if index < 1 or index > count:
+            names = [app.Documents(i).Name for i in range(1, count + 1)]
+            return f"序号超出范围（1-{count}），当前文档: {', '.join(names)}"
+
+        doc = app.Documents(index)
+        doc.Activate()
+        pages = doc.Content.ComputeStatistics(2)
+        return f"已激活文档: {doc.Name}（共 {pages} 页）"
+    except Exception as e:
+        return format_error("激活文档", e)
+
+
 def register_lifecycle_tools(mcp: FastMCP):
     """Register all L1 document lifecycle tools on the MCP server."""
     mcp.tool()(word_open)
@@ -141,3 +207,5 @@ def register_lifecycle_tools(mcp: FastMCP):
     mcp.tool()(word_save_as_pdf)
     mcp.tool()(word_close)
     mcp.tool()(word_get_active_document)
+    mcp.tool()(word_list_documents)
+    mcp.tool()(word_activate_document)

@@ -9,7 +9,6 @@ from mcp.server.fastmcp import FastMCP
 
 from .tools.lifecycle import register_lifecycle_tools
 from .tools.operations import register_operation_tools
-from .tools.vba import register_vba_tool
 
 logging.basicConfig(
     level=logging.INFO,
@@ -19,10 +18,9 @@ logger = logging.getLogger("word-mcp")
 
 mcp = FastMCP("word-mcp")
 
-# Register all three tool layers
+# Register tool layers (VBA module removed — requires unsafe trust setting)
 register_lifecycle_tools(mcp)
 register_operation_tools(mcp)
-register_vba_tool(mcp)
 
 
 def main():

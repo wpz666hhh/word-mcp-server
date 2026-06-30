@@ -69,22 +69,33 @@ async def word_format_text(
     italic: bool | None = None,
     underline: bool | None = None,
     color: str | None = None,
+    table_index: int | None = None,
 ) -> str:
     """设置文字格式（字体、大小、加粗、颜色等）。
 
     Args:
-        range_spec: 应用范围 — "selection"(选中), "all"(全文)
+        range_spec: 应用范围 — "selection"(选中), "all"(全文)。
+                    当指定 table_index 时此参数被忽略。
         font_name: 字体名称，如 "微软雅黑"、"Arial"
         font_size: 字号（磅），如 12、16
         bold: 是否加粗
         italic: 是否斜体
         underline: 是否下划线
         color: 字体颜色，RGB十六进制如 "FF0000"（红色）
+        table_index: 可选，指定表格序号（1=第一个表格），仅格式化该表格文字。
     """
     try:
         app = get_word_app()
         doc = app.ActiveDocument
-        rng = _resolve_range(app, doc, range_spec)
+
+        # Resolve target range
+        if table_index is not None:
+            table = doc.Tables(table_index)
+            rng = table.Range
+            label = f"表格{table_index}"
+        else:
+            rng = _resolve_range(app, doc, range_spec)
+            label = range_spec
 
         changes = []
         font = rng.Font
@@ -112,8 +123,9 @@ async def word_format_text(
             font.Color = r + g * 256 + b * 65536
             changes.append(f"颜色=#{color}")
 
+        range_label = f"[{label}] " if table_index is not None else ""
         if changes:
-            return f"已设置: {', '.join(changes)}"
+            return f"已设置{range_label}: {', '.join(changes)}"
         return "未指定任何格式参数"
     except Exception as e:
         return format_error("设置文字格式", e)
@@ -345,6 +357,10 @@ async def word_format_table(
     style: str | None = None,
     header_row: bool = False,
     auto_fit: bool = False,
+    font_name: str | None = None,
+    font_size: float | None = None,
+    font_color: str | None = None,
+    font_bold: bool | None = None,
 ) -> str:
     """设置表格格式。
 
@@ -353,6 +369,10 @@ async def word_format_table(
         style: Word 表格样式名，如 "Grid Table 1 Light"
         header_row: 是否设置首行为表头（加粗 + 重复标题行）
         auto_fit: 是否自适应列宽
+        font_name: 表格字体名称，如 "宋体"、"微软雅黑"
+        font_size: 表格字号（磅），如 12（小四）、10.5（五号）
+        font_color: 表格字体颜色，RGB十六进制如 "000000"（黑色）
+        font_bold: 表格文字是否加粗
     """
     try:
         app = get_word_app()
@@ -377,6 +397,28 @@ async def word_format_table(
         if auto_fit:
             table.AutoFitBehavior(2)  # wdAutoFitWindow
             changes.append("自适应列宽")
+
+        # Font formatting for the entire table
+        if any(x is not None for x in (font_name, font_size, font_color, font_bold)):
+            tbl_range = table.Range
+            tbl_font = tbl_range.Font
+
+            if font_name is not None:
+                tbl_font.Name = font_name
+                changes.append(f"字体={font_name}")
+            if font_size is not None:
+                tbl_font.Size = font_size
+                changes.append(f"字号={font_size}pt")
+            if font_color is not None:
+                hex_str = font_color.lstrip("#")
+                r = int(hex_str[0:2], 16)
+                g = int(hex_str[2:4], 16)
+                b = int(hex_str[4:6], 16)
+                tbl_font.Color = r + g * 256 + b * 65536
+                changes.append(f"颜色=#{font_color}")
+            if font_bold is not None:
+                tbl_font.Bold = font_bold
+                changes.append(f"加粗={'是' if font_bold else '否'}")
 
         if changes:
             return f"已设置表格格式: {', '.join(changes)}"
@@ -534,50 +576,85 @@ async def word_set_header_footer(
     type: str = "header",
     text: str = "",
     include_pagenum: bool = False,
+    page_num_style: str = "page_of_total",
+    alignment: str = "center",
 ) -> str:
     """设置页眉或页脚内容。
 
     Args:
         type: "header"(页眉) 或 "footer"(页脚)
-        text: 页眉/页脚的文字内容
-        include_pagenum: 是否添加页码
+        text: 前缀文字，放在页码格式之前。例如 "— " 得到 "— 第 1 页 / 共 2 页"。
+              留空则只显示 "第 1 页 / 共 2 页"。
+              如需只添加居中页码，可设 text="" + include_pagenum=true。
+        include_pagenum: 是否添加页码。
+        page_num_style: 页码格式 — "page_of_total"(第X页/共Y页), "simple"(仅数字)。
+        alignment: 对齐方式 — "left", "center"(默认), "right"。
     """
     try:
         app = get_word_app()
         doc = app.ActiveDocument
 
-        section = doc.Sections(1)
-        if type == "header":
-            hf = section.Headers(1)  # wdHeaderFooterPrimary
-            label = "页眉"
-        else:
-            hf = section.Footers(1)  # wdHeaderFooterPrimary
-            label = "页脚"
+        label = "页眉" if type == "header" else "页脚"
+        align_val = ALIGNMENT_MAP.get(alignment, wdAlignParagraphCenter)
 
-        rng = hf.Range
+        # Apply to ALL sections
+        sections_processed = 0
+        for sec_idx in range(1, doc.Sections.Count + 1):
+            section = doc.Sections(sec_idx)
 
-        if text:
-            rng.Text = text
+            if type == "header":
+                hf = section.Headers(1)  # wdHeaderFooterPrimary
+            else:
+                hf = section.Footers(1)  # wdHeaderFooterPrimary
 
-        if include_pagenum:
+            # Always clear existing content first
+            hf.Range.Delete()
+
+            if not text and not include_pagenum:
+                sections_processed += 1
+                continue
+
+            # Get a fresh range after clearing
+            rng = hf.Range
+
+            # 1) Write prefix text
             if text:
-                rng.InsertAfter("  ")
+                rng.Text = text
                 rng.Collapse(0)  # wdCollapseEnd
 
-            rng.InsertAfter("第 ")
-            rng.Collapse(0)
-            doc.Fields.Add(rng, 33)  # wdFieldPage
-            rng.InsertAfter(" 页 / 共 ")
-            rng.Collapse(0)
-            doc.Fields.Add(rng, 26)  # wdFieldNumPages
-            rng.InsertAfter(" 页")
+            # 2) Append page-number fields
+            if include_pagenum:
+                if page_num_style == "simple":
+                    # Just the page number
+                    doc.Fields.Add(rng, 33)  # wdFieldPage
+                else:
+                    # "第 X 页 / 共 Y 页"
+                    rng.InsertAfter("第 ")
+                    rng.Collapse(0)
+                    doc.Fields.Add(rng, 33)  # wdFieldPage
+                    rng.InsertAfter(" 页 / 共 ")
+                    rng.Collapse(0)
+                    doc.Fields.Add(rng, 26)  # wdFieldNumPages
+                    rng.InsertAfter(" 页")
+
+            # Set paragraph alignment
+            hf.Range.ParagraphFormat.Alignment = align_val
+            sections_processed += 1
+
+        # Build result message
+        if not text and not include_pagenum:
+            plural = "s" if sections_processed > 1 else ""
+            return f"已清空{label}（{sections_processed} 节）"
 
         parts = []
         if text:
             parts.append(f"内容='{text}'")
         if include_pagenum:
-            parts.append("含页码")
-        return f"已设置{label}: {', '.join(parts)}"
+            style_label = "数字" if page_num_style == "simple" else "第X页/共Y页"
+            parts.append(f"页码({style_label})")
+        parts.append(f"对齐={alignment}")
+        plural = "s" if sections_processed > 1 else ""
+        return f"已设置{label}（{sections_processed} 节{plural}）: {', '.join(parts)}"
     except Exception as e:
         return format_error(f"设置{type}", e)
 
