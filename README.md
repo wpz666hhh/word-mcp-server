@@ -6,8 +6,6 @@
 
 <a id="中文"></a>
 
-# 中文
-
 **通过 COM 自动化让 Claude Agent 操控 Microsoft Word，实时可见。**
 
 ## 简介
