@@ -69,7 +69,7 @@ class TestTextOperations:
 
         self._run(word_insert_text(text="Bold Text"))
         result = self._run(word_format_text(
-            range="selection",
+            range_spec="selection",
             bold=True,
             font_name="Arial",
             font_size=16,
@@ -82,7 +82,7 @@ class TestTextOperations:
         from word_mcp.tools.operations import word_insert_text, word_format_paragraph
 
         self._run(word_insert_text(text="Centered paragraph"))
-        result = self._run(word_format_paragraph(range="selection", alignment="center"))
+        result = self._run(word_format_paragraph(range_spec="selection", alignment="center"))
         assert "已设置" in result
 
     def test_get_content(self):
@@ -105,7 +105,7 @@ class TestTextOperations:
         from word_mcp.tools.operations import word_insert_text, word_select
 
         self._run(word_insert_text(text="Selectable text here"))
-        result = self._run(word_select(range="start"))
+        result = self._run(word_select(range_spec="start"))
         assert "已选中" in result or "选中" in result
 
     def test_apply_style(self):
@@ -113,7 +113,7 @@ class TestTextOperations:
         from word_mcp.tools.operations import word_insert_text, word_apply_style
 
         self._run(word_insert_text(text="A heading"))
-        result = self._run(word_apply_style(range="selection", style_name="Heading 1"))
+        result = self._run(word_apply_style(range_spec="selection", style_name="Heading 1"))
         assert "已应用" in result or "样式" in result
 
     def test_auto_numbering_bullet(self):
@@ -121,7 +121,7 @@ class TestTextOperations:
         from word_mcp.tools.operations import word_insert_text, word_auto_numbering
 
         self._run(word_insert_text(text="Bullet item"))
-        result = self._run(word_auto_numbering(range="selection", type="bullet"))
+        result = self._run(word_auto_numbering(range_spec="selection", type="bullet"))
         assert "已设置" in result
 
 

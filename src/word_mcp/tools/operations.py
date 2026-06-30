@@ -62,7 +62,7 @@ async def word_insert_text(
 
 
 async def word_format_text(
-    range: str = "selection",
+    range_spec: str = "selection",
     font_name: str | None = None,
     font_size: float | None = None,
     bold: bool | None = None,
@@ -73,7 +73,7 @@ async def word_format_text(
     """设置文字格式（字体、大小、加粗、颜色等）。
 
     Args:
-        range: 应用范围 — "selection"(选中), "all"(全文)
+        range_spec: 应用范围 — "selection"(选中), "all"(全文)
         font_name: 字体名称，如 "微软雅黑"、"Arial"
         font_size: 字号（磅），如 12、16
         bold: 是否加粗
@@ -84,7 +84,7 @@ async def word_format_text(
     try:
         app = get_word_app()
         doc = app.ActiveDocument
-        rng = _resolve_range(app, doc, range)
+        rng = _resolve_range(app, doc, range_spec)
 
         changes = []
         font = rng.Font
@@ -104,7 +104,12 @@ async def word_format_text(
             font.Underline = 1 if underline else 0
             changes.append(f"下划线={'是' if underline else '否'}")
         if color is not None:
-            font.Color = int(color, 16)
+            # Word Font.Color uses R + G*256 + B*65536 format
+            hex_str = color.lstrip("#")
+            r = int(hex_str[0:2], 16)
+            g = int(hex_str[2:4], 16)
+            b = int(hex_str[4:6], 16)
+            font.Color = r + g * 256 + b * 65536
             changes.append(f"颜色=#{color}")
 
         if changes:
@@ -115,7 +120,7 @@ async def word_format_text(
 
 
 async def word_format_paragraph(
-    range: str = "selection",
+    range_spec: str = "selection",
     alignment: str | None = None,
     line_spacing: float | None = None,
     first_line_indent: float | None = None,
@@ -125,7 +130,7 @@ async def word_format_paragraph(
     """设置段落格式（对齐、行距、缩进等）。
 
     Args:
-        range: 应用范围 — "selection", "all"
+        range_spec: 应用范围 — "selection", "all"
         alignment: 对齐方式 — "left", "center", "right", "justify"
         line_spacing: 行距倍数，如 1.5、2.0
         first_line_indent: 首行缩进（磅），如 24 表示两个字符
@@ -135,7 +140,7 @@ async def word_format_paragraph(
     try:
         app = get_word_app()
         doc = app.ActiveDocument
-        rng = _resolve_range(app, doc, range)
+        rng = _resolve_range(app, doc, range_spec)
 
         changes = []
         pf = rng.ParagraphFormat
@@ -170,20 +175,20 @@ async def word_format_paragraph(
 
 
 async def word_get_content(
-    range: str = "all",
+    range_spec: str = "all",
     format: str = "text",
 ) -> str:
     """读取文档内容。
 
     Args:
-        range: 读取范围 — "all"(全文), "selection"(选中)
+        range_spec: 读取范围 — "all"(全文), "selection"(选中)
         format: 返回格式 — "text"(纯文本), "html"(带格式)
     """
     try:
         app = get_word_app()
         doc = app.ActiveDocument
 
-        if range == "selection":
+        if range_spec == "selection":
             rng = app.Selection.Range
             label = "选中内容"
         else:
@@ -218,36 +223,36 @@ async def word_get_selection() -> str:
         return format_error("获取选中内容", e)
 
 
-async def word_select(range: str) -> str:
+async def word_select(range_spec: str) -> str:
     """选中文档中的指定区域（用户可在 Word 窗口中看到高亮）。
 
     Args:
-        range: "start"(跳到开头), "end"(跳到末尾), "all"(全选)
+        range_spec: "start"(跳到开头), "end"(跳到末尾), "all"(全选)
     """
     try:
         app = get_word_app()
         doc = app.ActiveDocument
-        rng = _resolve_range(app, doc, range)
+        rng = _resolve_range(app, doc, range_spec)
         rng.Select()
-        return f"已选中: {range}"
+        return f"已选中: {range_spec}"
     except Exception as e:
         return format_error("选中区域", e)
 
 
 async def word_apply_style(
-    range: str = "selection",
+    range_spec: str = "selection",
     style_name: str = "Normal",
 ) -> str:
     """对指定区域应用 Word 内置样式。
 
     Args:
-        range: 应用范围
+        range_spec: 应用范围
         style_name: 样式名，如 "Normal", "Heading 1", "Heading 2", "Title"
     """
     try:
         app = get_word_app()
         doc = app.ActiveDocument
-        rng = _resolve_range(app, doc, range)
+        rng = _resolve_range(app, doc, range_spec)
 
         try:
             style = doc.Styles(style_name)
@@ -269,19 +274,19 @@ async def word_apply_style(
 
 
 async def word_auto_numbering(
-    range: str = "selection",
+    range_spec: str = "selection",
     type: str = "bullet",
 ) -> str:
     """为指定段落设置编号或项目符号。
 
     Args:
-        range: 应用范围
+        range_spec: 应用范围
         type: "bullet"(项目符号), "number"(数字编号)
     """
     try:
         app = get_word_app()
         doc = app.ActiveDocument
-        rng = _resolve_range(app, doc, range)
+        rng = _resolve_range(app, doc, range_spec)
 
         if type == "bullet":
             rng.ListFormat.ApplyBulletDefault()

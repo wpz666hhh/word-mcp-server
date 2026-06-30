@@ -70,10 +70,7 @@ async def word_execute_vba(code: str) -> str:
         return "VBA 代码已执行成功"
 
     except Exception as e:
-        error_msg = str(e)
-        if hasattr(e, 'args') and len(e.args) > 0:
-            error_msg = str(e.args[0])
-        return f"VBA 执行错误: {error_msg}"
+        return f"VBA 执行错误: {e}"
 
     finally:
         if vb_comp is not None:

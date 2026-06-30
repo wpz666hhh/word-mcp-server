@@ -135,7 +135,7 @@ class TestEndToEnd:
 
         # 2. Insert title
         self._run(word_insert_text(text="张三的简历\n", position="start"))
-        self._run(word_format_text(range="all", bold=True, font_size=22))
+        self._run(word_format_text(range_spec="all", bold=True, font_size=22))
 
         # 3. Insert personal info table
         data = [
