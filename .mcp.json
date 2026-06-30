@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "word": {
+      "command": "python",
+      "args": ["-m", "word_mcp"],
+      "type": "local"
+    }
+  }
+}
