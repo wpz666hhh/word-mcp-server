@@ -352,6 +352,13 @@ async def word_insert_table(
         return format_error("插入表格", e)
 
 
+ROW_HEIGHT_RULE_MAP = {
+    "auto": 0,      # wdRowHeightAuto
+    "at_least": 1,  # wdRowHeightAtLeast
+    "exactly": 2,   # wdRowHeightExactly
+}
+
+
 async def word_format_table(
     table_index: int = 1,
     style: str | None = None,
@@ -361,6 +368,8 @@ async def word_format_table(
     font_size: float | None = None,
     font_color: str | None = None,
     font_bold: bool | None = None,
+    row_height: float | None = None,
+    row_height_rule: str | None = None,
 ) -> str:
     """设置表格格式。
 
@@ -373,6 +382,9 @@ async def word_format_table(
         font_size: 表格字号（磅），如 12（小四）、10.5（五号）
         font_color: 表格字体颜色，RGB十六进制如 "000000"（黑色）
         font_bold: 表格文字是否加粗
+        row_height: 统一行高（磅），如 45。需配合 row_height_rule 使用。
+        row_height_rule: 行高规则 — "auto"(自动), "at_least"(至少), "exactly"(精确固定)。
+                         设为 "exactly" 可强制所有行等高。
     """
     try:
         app = get_word_app()
@@ -419,6 +431,22 @@ async def word_format_table(
             if font_bold is not None:
                 tbl_font.Bold = font_bold
                 changes.append(f"加粗={'是' if font_bold else '否'}")
+
+        # Row height
+        rule_label = row_height_rule if row_height_rule else ""
+        if row_height is not None or row_height_rule is not None:
+            for i in range(1, table.Rows.Count + 1):
+                row = table.Rows(i)
+                if row_height_rule is not None and row_height_rule in ROW_HEIGHT_RULE_MAP:
+                    row.HeightRule = ROW_HEIGHT_RULE_MAP[row_height_rule]
+                if row_height is not None:
+                    row.Height = row_height
+            if row_height and row_height_rule:
+                changes.append(f"行高={row_height}pt({rule_label})")
+            elif row_height:
+                changes.append(f"行高={row_height}pt")
+            elif row_height_rule:
+                changes.append(f"行高规则={rule_label}")
 
         if changes:
             return f"已设置表格格式: {', '.join(changes)}"
@@ -578,6 +606,8 @@ async def word_set_header_footer(
     include_pagenum: bool = False,
     page_num_style: str = "page_of_total",
     alignment: str = "center",
+    font_name: str | None = None,
+    font_size: float | None = None,
 ) -> str:
     """设置页眉或页脚内容。
 
@@ -589,6 +619,8 @@ async def word_set_header_footer(
         include_pagenum: 是否添加页码。
         page_num_style: 页码格式 — "page_of_total"(第X页/共Y页), "simple"(仅数字)。
         alignment: 对齐方式 — "left", "center"(默认), "right"。
+        font_name: 页眉/页脚字体名称，如 "Times New Roman"、"宋体"。
+        font_size: 页眉/页脚字号（磅），如 10.5、12。
     """
     try:
         app = get_word_app()
@@ -639,6 +671,15 @@ async def word_set_header_footer(
 
             # Set paragraph alignment
             hf.Range.ParagraphFormat.Alignment = align_val
+
+            # Apply font formatting to the header/footer
+            if font_name is not None or font_size is not None:
+                hf_font = hf.Range.Font
+                if font_name is not None:
+                    hf_font.Name = font_name
+                if font_size is not None:
+                    hf_font.Size = font_size
+
             sections_processed += 1
 
         # Build result message
@@ -653,6 +694,10 @@ async def word_set_header_footer(
             style_label = "数字" if page_num_style == "simple" else "第X页/共Y页"
             parts.append(f"页码({style_label})")
         parts.append(f"对齐={alignment}")
+        if font_name is not None:
+            parts.append(f"字体={font_name}")
+        if font_size is not None:
+            parts.append(f"字号={font_size}pt")
         plural = "s" if sections_processed > 1 else ""
         return f"已设置{label}（{sections_processed} 节{plural}）: {', '.join(parts)}"
     except Exception as e:
