@@ -16,12 +16,14 @@ def reset_com_manager():
 
 
 def _cleanup_com_manager():
-    """Release any held COM resources."""
+    """Release any held COM resources without killing the Word process."""
     import pythoncom
 
     if com_manager._word_app is not None:
         try:
-            com_manager._word_app.Quit()
+            # Close all open documents without saving (gentler than Quit)
+            while com_manager._word_app.Documents.Count > 0:
+                com_manager._word_app.Documents(1).Close(SaveChanges=False)
         except Exception:
             pass
         com_manager._word_app = None
