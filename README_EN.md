@@ -80,7 +80,7 @@ Add to your `settings.local.json` (`C:\Users\<your-username>\.claude\` or `<proj
 
 Restart Claude Code to activate.
 
-> **Tip:** This repo includes a `.mcp.json` file at the root. If you cloned the repo, Claude Code may auto-discover this MCP server. See [MCP auto-discovery docs](https://docs.anthropic.com/en/docs/agents/claude-code/mcp#auto-discovery).
+> **Tip:** This repo includes a `.mcp.json` file at the root. Claude Code auto-discovers it when you open the cloned project.
 
 ## Available Tools
 

@@ -80,7 +80,7 @@ iex "& { $(curl -fsL https://raw.githubusercontent.com/wpz666hhh/word-mcp-server
 
 重启 Claude Code 即可生效。
 
-> **提示：** 本仓库自带 `.mcp.json` 配置文件，如果你克隆了仓库，Claude Code 可能能自动发现此 MCP 服务。见 [MCP 服务器自动发现](https://docs.anthropic.com/en/docs/agents/claude-code/mcp#auto-discovery)。
+> **提示：** 本仓库自带 `.mcp.json` 配置文件，克隆仓库后 Claude Code 会自动发现此 MCP 服务。
 
 ## 可用工具
 
