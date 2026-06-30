@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta:__legacy__"
+
+[project]
+name = "word-mcp-server"
+version = "0.1.0"
+description = "MCP server for Microsoft Word COM automation"
+requires-python = ">=3.10"
+dependencies = [
+    "pywin32>=306",
+    "mcp>=1.0.0",
+]
+
+[project.scripts]
+word-mcp = "word_mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
