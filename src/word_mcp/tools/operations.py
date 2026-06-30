@@ -296,6 +296,178 @@ async def word_auto_numbering(
         return format_error("设置编号", e)
 
 
+# === Batch B: Table, Image, Page Break, Find/Replace ===
+
+
+async def word_insert_table(
+    rows: int,
+    cols: int,
+    data: list[list[str]] | None = None,
+    position: str = "selection",
+) -> str:
+    """插入表格，可附带数据填充。
+
+    Args:
+        rows: 行数
+        cols: 列数
+        data: 可选，二维数组，用于填充表格内容。第一行作为表头。
+        position: 插入位置
+    """
+    try:
+        app = get_word_app()
+        doc = app.ActiveDocument
+        rng = _resolve_range(app, doc, position)
+
+        table = doc.Tables.Add(rng, rows, cols)
+        table.Borders.Enable = True
+
+        if data:
+            for i, row_data in enumerate(data):
+                for j, cell_text in enumerate(row_data):
+                    if i < rows and j < cols:
+                        cell = table.Cell(i + 1, j + 1)
+                        cell.Range.Text = str(cell_text)
+
+        if data:
+            return f"已插入表格: {rows}行×{cols}列（已填充 {len(data)} 行数据）"
+        return f"已插入表格: {rows}行×{cols}列"
+    except Exception as e:
+        return format_error("插入表格", e)
+
+
+async def word_format_table(
+    table_index: int = 1,
+    style: str | None = None,
+    header_row: bool = False,
+    auto_fit: bool = False,
+) -> str:
+    """设置表格格式。
+
+    Args:
+        table_index: 表格序号（1=第一个表格）
+        style: Word 表格样式名，如 "Grid Table 1 Light"
+        header_row: 是否设置首行为表头（加粗 + 重复标题行）
+        auto_fit: 是否自适应列宽
+    """
+    try:
+        app = get_word_app()
+        doc = app.ActiveDocument
+        table = doc.Tables(table_index)
+
+        changes = []
+
+        if style is not None:
+            try:
+                table.Style = style
+                changes.append(f"样式={style}")
+            except Exception:
+                pass
+
+        if header_row:
+            for j in range(1, table.Columns.Count + 1):
+                table.Cell(1, j).Range.Font.Bold = True
+            table.Rows(1).HeadingFormat = -1
+            changes.append("首行为表头")
+
+        if auto_fit:
+            table.AutoFitBehavior(2)  # wdAutoFitWindow
+            changes.append("自适应列宽")
+
+        if changes:
+            return f"已设置表格格式: {', '.join(changes)}"
+        return "未指定任何表格格式参数"
+    except Exception as e:
+        return format_error("设置表格格式", e)
+
+
+async def word_insert_image(
+    image_path: str,
+    position: str = "selection",
+    width: float | None = None,
+    height: float | None = None,
+) -> str:
+    """在文档中插入图片。
+
+    Args:
+        image_path: 图片文件路径（PNG, JPG, GIF, BMP 等）
+        position: 插入位置
+        width: 可选，图片宽度（磅），不指定则保持原始宽度
+        height: 可选，图片高度（磅）
+    """
+    try:
+        import os
+
+        app = get_word_app()
+        doc = app.ActiveDocument
+        path = os.path.abspath(os.path.expandvars(os.path.expanduser(image_path)))
+
+        if not os.path.exists(path):
+            return f"图片文件不存在: {path}"
+
+        rng = _resolve_range(app, doc, position)
+        shape = doc.InlineShapes.AddPicture(
+            path,
+            LinkToFile=False,
+            SaveWithDocument=True,
+            Range=rng,
+        )
+
+        if width is not None:
+            shape.Width = width
+        if height is not None:
+            shape.Height = height
+
+        return f"已插入图片: {os.path.basename(path)}（{shape.Width:.0f}×{shape.Height:.0f}pt）"
+    except Exception as e:
+        return format_error("插入图片", e)
+
+
+async def word_insert_page_break(position: str = "selection") -> str:
+    """在指定位置插入分页符。
+
+    Args:
+        position: 插入位置
+    """
+    try:
+        app = get_word_app()
+        doc = app.ActiveDocument
+        rng = _resolve_range(app, doc, position)
+        rng.InsertBreak(7)  # wdPageBreak = 7
+        return "已插入分页符"
+    except Exception as e:
+        return format_error("插入分页符", e)
+
+
+async def word_find_replace(
+    find_text: str,
+    replace_text: str,
+    match_case: bool = False,
+) -> str:
+    """在全文范围内查找并替换文字。
+
+    Args:
+        find_text: 要查找的文字
+        replace_text: 替换后的文字
+        match_case: 是否区分大小写
+    """
+    try:
+        app = get_word_app()
+        doc = app.ActiveDocument
+
+        find = doc.Content.Find
+        find.Text = find_text
+        find.Replacement.Text = replace_text
+        find.MatchCase = match_case
+        find.Forward = True
+        find.Wrap = 1  # wdFindContinue
+
+        find.Execute(Replace=2)  # wdReplaceAll
+
+        return f"已完成查找替换: '{find_text}' → '{replace_text}'"
+    except Exception as e:
+        return format_error("查找替换", e)
+
+
 def register_operation_tools(mcp: FastMCP):
     """Register all L2 atomic operation tools on the MCP server."""
     mcp.tool()(word_insert_text)
@@ -306,3 +478,10 @@ def register_operation_tools(mcp: FastMCP):
     mcp.tool()(word_select)
     mcp.tool()(word_apply_style)
     mcp.tool()(word_auto_numbering)
+
+    # === Batch B: Table, Image, Page Break, Find/Replace ===
+    mcp.tool()(word_insert_table)
+    mcp.tool()(word_format_table)
+    mcp.tool()(word_insert_image)
+    mcp.tool()(word_insert_page_break)
+    mcp.tool()(word_find_replace)

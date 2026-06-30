@@ -1,5 +1,6 @@
 """Tests for L2 atomic operation tools."""
 import sys
+import tempfile
 
 import pytest
 
@@ -122,3 +123,94 @@ class TestTextOperations:
         self._run(word_insert_text(text="Bullet item"))
         result = self._run(word_auto_numbering(range="selection", type="bullet"))
         assert "已设置" in result
+
+
+@pytest.mark.skipif(not OPS_AVAILABLE, reason="COM tests only on Windows")
+class TestTableOperations:
+    """Tests for table insertion and formatting."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        import asyncio
+        from word_mcp.com_manager import get_word_app
+        from word_mcp.tools.lifecycle import word_create
+
+        self.app = get_word_app(visible=False)
+        asyncio.run(word_create())
+        self.doc = self.app.ActiveDocument
+        self.loop = asyncio.new_event_loop()
+        yield
+        self.loop.close()
+        try:
+            self.doc.Close(SaveChanges=False)
+        except Exception:
+            pass
+
+    def _run(self, coro):
+        return self.loop.run_until_complete(coro)
+
+    def test_insert_table(self):
+        """word_insert_table: insert a table with data."""
+        from word_mcp.tools.operations import word_insert_table
+
+        data = [["Name", "Age"], ["Alice", "30"], ["Bob", "25"]]
+        result = self._run(word_insert_table(rows=3, cols=2, data=data))
+        assert "已插入" in result
+        assert self.doc.Tables.Count == 1
+
+    def test_format_table(self):
+        """word_format_table: apply style to a table."""
+        from word_mcp.tools.operations import word_insert_table, word_format_table
+
+        self._run(word_insert_table(rows=2, cols=2))
+        result = self._run(word_format_table(
+            table_index=1,
+            header_row=True,
+            auto_fit=True,
+        ))
+        assert "已设置" in result
+
+
+@pytest.mark.skipif(not OPS_AVAILABLE, reason="COM tests only on Windows")
+class TestImageAndBreakOperations:
+    """Tests for image insertion and page breaks."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        import asyncio
+        from word_mcp.com_manager import get_word_app
+        from word_mcp.tools.lifecycle import word_create
+
+        self.app = get_word_app(visible=False)
+        asyncio.run(word_create())
+        self.doc = self.app.ActiveDocument
+        self.loop = asyncio.new_event_loop()
+        self.tmpdir = tempfile.mkdtemp()
+        yield
+        self.loop.close()
+        try:
+            self.doc.Close(SaveChanges=False)
+        except Exception:
+            pass
+
+    def _run(self, coro):
+        return self.loop.run_until_complete(coro)
+
+    def test_insert_page_break(self):
+        """word_insert_page_break: insert a page break."""
+        from word_mcp.tools.operations import word_insert_page_break
+
+        self._run(word_insert_page_break())
+        assert self.doc.Content.Text.count("\x0c") >= 1  # Form feed char
+
+    def test_find_replace(self):
+        """word_find_replace: find and replace text."""
+        from word_mcp.tools.operations import word_insert_text, word_find_replace
+
+        self._run(word_insert_text(text="Hello Alice, hello Bob"))
+        result = self._run(word_find_replace(
+            find_text="Hello",
+            replace_text="Hi",
+        ))
+        assert "已完成" in result
+        assert "Hi Alice" in self.doc.Content.Text
