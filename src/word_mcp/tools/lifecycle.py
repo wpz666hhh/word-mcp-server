@@ -8,7 +8,7 @@ from ..com_manager import get_word_app
 from ..utils import ensure_dir, format_error
 
 
-async def word_open(file_path: str) -> str:
+def word_open(file_path: str) -> str:
     """打开已有 Word 文档。
 
     Args:
@@ -38,7 +38,7 @@ async def word_open(file_path: str) -> str:
         return format_error("打开文档", e)
 
 
-async def word_create(template_path: str | None = None) -> str:
+def word_create(template_path: str | None = None) -> str:
     """新建 Word 文档，可指定模板。
 
     Args:
@@ -56,7 +56,7 @@ async def word_create(template_path: str | None = None) -> str:
         return format_error("创建文档", e)
 
 
-async def word_save(file_path: str | None = None) -> str:
+def word_save(file_path: str | None = None) -> str:
     """保存当前活动文档。
 
     Args:
@@ -76,7 +76,7 @@ async def word_save(file_path: str | None = None) -> str:
         return format_error("保存文档", e)
 
 
-async def word_save_as_pdf(
+def word_save_as_pdf(
     output_path: str,
     page_range: str | None = None,
 ) -> str:
@@ -107,7 +107,7 @@ async def word_save_as_pdf(
         return format_error("导出 PDF", e)
 
 
-async def word_close(save_before_close: bool = True) -> str:
+def word_close(save_before_close: bool = True) -> str:
     """关闭当前活动文档（不关闭 Word 进程）。
 
     Args:
@@ -125,7 +125,7 @@ async def word_close(save_before_close: bool = True) -> str:
         return format_error("关闭文档", e)
 
 
-async def word_get_active_document() -> str:
+def word_get_active_document() -> str:
     """获取当前活动文档的信息（路径、页数、字数等）。"""
     try:
         app = get_word_app()
@@ -147,7 +147,7 @@ async def word_get_active_document() -> str:
         return format_error("获取文档信息", e)
 
 
-async def word_list_documents() -> str:
+def word_list_documents() -> str:
     """列出 Word 中当前所有已打开的文档。
 
     Returns:
@@ -176,7 +176,7 @@ async def word_list_documents() -> str:
         return format_error("列出文档", e)
 
 
-async def word_activate_document(index: int) -> str:
+def word_activate_document(index: int) -> str:
     """激活（切换到）指定的已打开文档。
 
     Args:

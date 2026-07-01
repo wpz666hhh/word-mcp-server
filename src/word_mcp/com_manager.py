@@ -6,6 +6,7 @@ attaches to an existing Word process (GetObject) or creates a new one
 is lost (user closed Word), the next call transparently reconnects.
 """
 
+import atexit
 import logging
 from typing import Optional
 
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 _word_app: Optional[object] = None
 _coinit_done: bool = False
+_created_by_us: bool = False
 
 
 def get_word_app(visible: bool = True) -> object:
@@ -31,7 +33,7 @@ def get_word_app(visible: bool = True) -> object:
     Raises:
         RuntimeError: If Microsoft Word is not installed or cannot be started.
     """
-    global _word_app, _coinit_done
+    global _word_app, _coinit_done, _created_by_us
 
     # If we already have a reference, test if it's still alive
     if _word_app is not None:
@@ -57,6 +59,7 @@ def get_word_app(visible: bool = True) -> object:
     except Exception:
         try:
             _word_app = win32com.client.Dispatch("Word.Application")
+            _created_by_us = True
             logger.info("Created new Word process")
         except Exception as e:
             raise RuntimeError(
@@ -84,3 +87,17 @@ def release_word():
         except Exception:
             pass
         _coinit_done = False
+
+@atexit.register
+def _cleanup_word():
+    """Clean up Word process on exit if we created it."""
+    global _word_app, _created_by_us
+    if _created_by_us and _word_app is not None:
+        try:
+            # We created it, so quit to avoid zombie WINWORD.EXE
+            # Pass SaveChanges=False (wdDoNotSaveChanges=0)
+            _word_app.Quit(0)
+            logger.info("Cleaned up Word process on exit")
+        except Exception:
+            pass
+    release_word()

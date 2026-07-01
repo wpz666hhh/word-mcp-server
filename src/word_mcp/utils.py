@@ -64,7 +64,8 @@ def format_error(operation: str, error: Exception) -> str:
             parts = err_str.split(", ")
             for p in parts:
                 if "wdmain" not in p and "0x" not in p and len(p) > 10 and "，" in p:
-                    return f"{operation}失败: {p.strip(\"'\")(\")}"
+                    clean_p = p.strip("'\"")
+                    return f"{operation}失败: {clean_p}"
             return f"{operation}失败: 请检查 Word 窗口状态后重试"
 
     return f"{operation}失败: {err_str}"

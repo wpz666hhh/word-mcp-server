@@ -41,11 +41,11 @@ class TestDocumentLifecycle:
         """word_create + word_save: create a doc and save it."""
         from word_mcp.tools.lifecycle import word_create, word_save
 
-        result1 = self._run(word_create())
+        result1 = word_create()
         assert "已创建" in result1
 
         doc_path = os.path.join(self.tmpdir, "test_create.docx")
-        result2 = self._run(word_save(file_path=doc_path))
+        result2 = word_save(file_path=doc_path)
         assert "已保存" in result2
         assert os.path.exists(doc_path)
 
@@ -58,7 +58,7 @@ class TestDocumentLifecycle:
         doc.SaveAs(doc_path)
         doc.Close()
 
-        result = self._run(word_open(file_path=doc_path))
+        result = word_open(file_path=doc_path)
         assert "已打开" in result
 
     def test_export_pdf(self):
@@ -69,7 +69,7 @@ class TestDocumentLifecycle:
         doc.Content.Text = "Hello PDF"
 
         pdf_path = os.path.join(self.tmpdir, "test_export.pdf")
-        result = self._run(word_save_as_pdf(output_path=pdf_path))
+        result = word_save_as_pdf(output_path=pdf_path)
         assert "已导出" in result
         assert os.path.exists(pdf_path)
 
@@ -80,7 +80,7 @@ class TestDocumentLifecycle:
         self.app.Documents.Add()
         assert self.app.Documents.Count == 1
 
-        result = self._run(word_close(save_before_close=False))
+        result = word_close(save_before_close=False)
         assert "已关闭" in result
         assert self.app.Documents.Count == 0
 
@@ -91,7 +91,7 @@ class TestDocumentLifecycle:
         doc = self.app.Documents.Add()
         doc.Content.Text = "Test content " * 100
 
-        result = self._run(word_get_active_document())
+        result = word_get_active_document()
         assert "当前文档" in result
         assert "页数" in result
 
@@ -124,18 +124,17 @@ class TestEndToEnd:
         from word_mcp.tools.lifecycle import (
             word_create, word_save, word_get_active_document,
         )
-        from word_mcp.tools.operations import (
-            word_insert_text, word_format_text, word_insert_table,
-            word_format_table, word_insert_page_break,
-        )
+        from word_mcp.tools.text import word_insert_text, word_format_text
+        from word_mcp.tools.tables import word_insert_table, word_format_table
+        from word_mcp.tools.layout import word_insert_page_break
 
         # 1. Create new document
-        self._run(word_create())
+        word_create()
         assert self.app.Documents.Count == 1
 
         # 2. Insert title
-        self._run(word_insert_text(text="张三的简历\n", position="start"))
-        self._run(word_format_text(range_spec="all", bold=True, font_size=22))
+        word_insert_text(text="张三的简历\n", position="start")
+        word_format_text(range_spec="all", bold=True, font_size=22)
 
         # 3. Insert personal info table
         data = [
@@ -143,21 +142,21 @@ class TestEndToEnd:
             ["电话", "138-0000-0000"],
             ["邮箱", "zhangsan@example.com"],
         ]
-        self._run(word_insert_table(rows=3, cols=2, data=data))
-        self._run(word_format_table(table_index=1, header_row=True))
+        word_insert_table(rows=3, cols=2, data=data)
+        word_format_table(table_index=1, header_row=True)
 
         # 4. Insert work experience section
-        self._run(word_insert_text(text="\n工作经历\n"))
+        word_insert_text(text="\n工作经历\n")
 
         # 5. Insert page break
-        self._run(word_insert_page_break())
+        word_insert_page_break()
 
         # 6. Save
         doc_path = os.path.join(self.tmpdir, "简历.docx")
-        result = self._run(word_save(file_path=doc_path))
+        result = word_save(file_path=doc_path)
         assert "已保存" in result
         assert os.path.exists(doc_path)
 
         # 7. Verify document has content
-        info = self._run(word_get_active_document())
+        info = word_get_active_document()
         assert "页数" in info
