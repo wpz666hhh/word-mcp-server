@@ -18,13 +18,19 @@ def word_open(file_path: str) -> str:
         app = get_word_app()
         path = os.path.abspath(os.path.expandvars(os.path.expanduser(file_path)))
         norm_path = os.path.normcase(os.path.normpath(path))
+        base_name = os.path.basename(norm_path).lower()
 
         # Check if already open — if so, just activate it
         for i in range(1, app.Documents.Count + 1):
             doc = app.Documents(i)
             try:
+                doc_name = doc.Name.lower()
                 doc_path = os.path.normcase(os.path.normpath(doc.FullName))
-                if doc_path == norm_path:
+                
+                # 1. 优先通过文件名（basename）比较，因为 Word 不允许同一实例中打开两个同名文件。
+                # 这能完美解决 OneDrive 路径（https://...）与本地绝对路径不一致、或相对路径解析偏差的问题。
+                # 2. 其次通过完整路径比对。
+                if doc_name == base_name or doc_path == norm_path:
                     doc.Activate()
                     pages = doc.Content.ComputeStatistics(2)
                     return f"文档已打开，已激活: {doc.Name}（共 {pages} 页）"

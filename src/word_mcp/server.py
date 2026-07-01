@@ -21,6 +21,7 @@ from .tools.layout import (
 )
 from .tools.structure import word_get_document_structure, word_read_table
 from .tools.macro import word_execute_macro
+from .tools.self_optimize import word_record_lesson
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,7 +44,7 @@ for tool_func in [
     word_insert_image, word_insert_page_break,
     word_set_page_setup, word_set_header_footer,
     word_get_document_structure, word_read_table,
-    word_execute_macro
+    word_execute_macro, word_record_lesson
 ]:
     mcp.tool()(tool_func)
 

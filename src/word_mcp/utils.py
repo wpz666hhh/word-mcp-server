@@ -28,16 +28,18 @@ def ensure_dir(file_path: str) -> None:
     parent.mkdir(parents=True, exist_ok=True)
 
 
-# Common COM error code → user-friendly Chinese message
-_COM_ERROR_HINTS: dict[str, str] = {
-    "-2147221005": "无效的类字符串，请确保 Microsoft Word 已正确安装",
-    "-2147023179": "无法连接到 Word，请确保 Word 正在运行",
-    "-2146824040": "没有打开的文档",
-    "-2146823114": "文档为空或范围无效",
-    "-2146823091": "请求的表格不存在",
-    "-2146823115": "找不到请求的样式",
-    "-2146823596": "文件路径无效或无法访问",
-}
+import json
+from pathlib import Path
+
+# Load error hints dynamically
+_HINTS_FILE = Path(__file__).parent / "com_errors.json"
+_COM_ERROR_HINTS: dict[str, str] = {}
+if _HINTS_FILE.exists():
+    try:
+        with open(_HINTS_FILE, "r", encoding="utf-8") as f:
+            _COM_ERROR_HINTS = json.load(f)
+    except Exception:
+        pass
 
 
 def format_error(operation: str, error: Exception) -> str:
