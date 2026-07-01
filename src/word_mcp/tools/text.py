@@ -159,12 +159,16 @@ def word_format_paragraph(
 def word_get_content(
     range_spec: LocatorDef = "all",
     format: str = "text",
+    max_length: int = 2000,
+    offset: int = 0
 ) -> str:
-    """读取文档内容。
+    """读取文档内容（支持分页与截断以节省 Token）。
 
     Args:
         range_spec: 读取范围 — "all"(全文), "selection"(选中)
         format: 返回格式 — "text"(纯文本), "html"(带格式)
+        max_length: 单次返回的最大字符数，默认 2000。
+        offset: 字符偏移量，用于分页读取。
     """
     try:
         app = get_word_app()
@@ -187,7 +191,18 @@ def word_get_content(
 
         if not content.strip():
             return f"[文档为空] ({label})"
-        return content
+            
+        total_len = len(content)
+        if offset >= total_len:
+            return f"偏移量 {offset} 超出文本总长度 {total_len}"
+            
+        end_pos = min(offset + max_length, total_len)
+        chunk = content[offset:end_pos]
+        
+        if end_pos < total_len:
+            chunk += f"\n\n[...内容已截断 (当前展示 {offset}-{end_pos} / 总长 {total_len})。请使用 offset={end_pos} 继续读取...]"
+            
+        return chunk
     except Exception as e:
         return format_error("读取内容", e)
 

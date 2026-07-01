@@ -36,11 +36,13 @@ The repo ships with `.mcp.json` for auto-discovery in Claude Code.
 
 ## Architecture
 
-### Three-layer structure split across 7 modules
+### Three-layer structure split across 8 modules
+
+All tools are registered in `server.py` — lifecycle tools via `register_lifecycle_tools(mcp)`, all others via a loop over `mcp.tool()`.
 
 ```
 src/word_mcp/
-├── server.py          — Entry: creates FastMCP, registers all tool functions, runs stdio
+├── server.py          — Entry: creates FastMCP, registers 29 tool functions, runs stdio
 ├── com_manager.py     — Singleton Word.Application via win32com (GetObject → Dispatch fallback)
 ├── utils.py           — Path helpers (normalize_path, ensure_dir), COM error-code → Chinese mapping
 ├── models.py          — TypedDict definitions (ParagraphLocator, HeadingLocator, BookmarkLocator, SearchLocator, Margins)
@@ -53,8 +55,26 @@ src/word_mcp/
     │                    delete_target, replace_target)
     ├── tables.py      — L2: 2 tools (insert_table, format_table)
     ├── layout.py      — L2: 4 tools (insert_image, insert_page_break, set_page_setup, set_header_footer)
-    └── structure.py   — L2: 2 tools (get_document_structure, read_table)
+    ├── structure.py   — L2: 2 tools (get_document_structure, read_table)
+    └── macro.py       — L3: 1 tool (word_execute_macro — batch Python execution via exec())
 ```
+
+### L3: `macro.py` — batch execution for complex operations
+
+`word_execute_macro` runs arbitrary Python code directly against the live Word COM objects (`app` and `doc` are injected as local variables). This is the escape hatch for operations too expensive to orchestrate one tool call at a time:
+
+```python
+word_execute_macro(python_code="""
+for i in range(1, doc.Tables(1).Rows.Count + 1):
+    doc.Tables(1).Rows(i).Height = 30
+""")
+```
+
+Key details:
+- Uses `exec()` with `ScreenUpdating=False` during execution, restoring it in a `finally` block
+- Captures any `print()` output via `contextlib.redirect_stdout`
+- Must NOT open new documents — only operate on the active `doc`
+- Prefer Range over Selection for performance
 
 ### `com_manager.py` — singleton `_word_app`
 
@@ -91,12 +111,14 @@ RGB hex strings (e.g. `"FF0000"` or `"#FF0000"`) → Word's `R + G*256 + B*65536
 ## Key patterns
 
 - **No async** — all tool functions are plain `def`, not `async def`. FastMCP's `mcp.tool()` wraps them.
-- **Error handling** — every tool wraps in `try/except` and calls `format_error(operation, e)`, which maps known COM HRESULTs to Chinese messages using `_COM_ERROR_HINTS` dict.
-- **Registration** — `lifecycle.py` tools registered via `register_lifecycle_tools(mcp)`; all others registered individually in `server.py` via `mcp.tool()(tool_func)` in a loop.
-- **Tests** — `conftest.py` auto-resets COM singleton before/after each test. All tests `@pytest.mark.skipif(sys.platform != "win32")`. Use `asyncio.new_event_loop()` + `run_until_complete()` to drive tools synchronously.
-- **VBA removed** — requires Word trust center toggle; all functionality covered by L1+L2 tools.
+- **Error handling** — every tool wraps in `try/except` and calls `format_error(operation, e)`, which maps known COM HRESULTs to Chinese messages using `_COM_ERROR_HINTS` dict. Falls through to the raw error string if no hint matches.
+- **Registration** — `lifecycle.py` tools registered via `register_lifecycle_tools(mcp)`; all others (including `word_execute_macro`) registered via `mcp.tool()(tool_func)` in a loop in `server.py`.
+- **Tests** — `conftest.py` auto-resets COM singleton before/after each test via `reset_com_manager()`. All tests `@pytest.mark.skipif(sys.platform != "win32")`. Test classes create their own `asyncio.new_event_loop()` (needed for FastMCP's async test setup) but call synchronous tool functions directly (not via `run_until_complete`). The `_run()` helper in test classes is unused and can be removed.
+- **Test files** — 6 test files in `tests/`: `conftest.py`, `test_com_manager.py`, `test_lifecycle.py`, `test_operations.py`, `test_structure_locator.py`. Each test class has an `autouse` fixture that creates a new document and cleans it up (`Close(SaveChanges=False)`) after each test.
+- **VBA removed** — requires Word trust center toggle; all functionality covered by L1+L2+L3 tools.
 
 ## Known issues
 
-- `__init__.py` version string (`0.1.0`) is outdated — `pyproject.toml` has `0.2.0`. Keep them in sync.
-- `operations.py` was split into `text.py` / `tables.py` / `layout.py` / `structure.py` — the old file is deleted, no import stubs remain.
+- `src/word_mcp/__init__.py` version string (`0.1.0`) is outdated — `pyproject.toml` has `0.2.0`. Keep them in sync.
+- `operations.py` was split into `text.py` / `tables.py` / `layout.py` / `structure.py` — the old file was deleted, no import stubs remain.
+- Test classes create `asyncio.new_event_loop()` and expose a `_run()` helper that wraps `loop.run_until_complete()`, but all tools are synchronous and tests call them directly — the loop object and `_run()` are vestigial.
