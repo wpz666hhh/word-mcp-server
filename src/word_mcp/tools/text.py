@@ -143,10 +143,12 @@ def word_format_paragraph(
             changes.append(f"首行缩进={first_line_indent}pt")
 
         if space_before is not None:
+            pf.SpaceBeforeAuto = False
             pf.SpaceBefore = space_before
             changes.append(f"段前={space_before}pt")
 
         if space_after is not None:
+            pf.SpaceAfterAuto = False
             pf.SpaceAfter = space_after
             changes.append(f"段后={space_after}pt")
 
@@ -248,8 +250,27 @@ def word_apply_style(
         doc = app.ActiveDocument
         rng = resolve_range(app, doc, range_spec)
 
+        STYLE_BUILTIN_MAP = {
+            "normal": -1,       # wdStyleNormal
+            "heading 1": -2,    # wdStyleHeading1
+            "heading 2": -3,    # wdStyleHeading2
+            "heading 3": -4,    # wdStyleHeading3
+            "heading 4": -5,    # wdStyleHeading4
+            "heading 5": -6,    # wdStyleHeading5
+            "heading 6": -7,    # wdStyleHeading6
+            "heading 7": -8,    # wdStyleHeading7
+            "heading 8": -9,    # wdStyleHeading8
+            "heading 9": -10,   # wdStyleHeading9
+            "title": -63,       # wdStyleTitle
+            "subtitle": -75,    # wdStyleSubtitle
+        }
+
         try:
-            style = doc.Styles(style_name)
+            style_key = style_name.strip().lower()
+            if style_key in STYLE_BUILTIN_MAP:
+                style = doc.Styles(STYLE_BUILTIN_MAP[style_key])
+            else:
+                style = doc.Styles(style_name)
         except Exception:
             available = []
             for i in range(1, min(doc.Styles.Count + 1, 30)):

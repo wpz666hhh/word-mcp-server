@@ -31,6 +31,19 @@ logger = logging.getLogger("word-mcp")
 
 mcp = FastMCP("word-mcp")
 
+from functools import wraps
+from .com_manager import release_word
+
+def com_cleanup_decorator(func):
+    """Decorator to ensure COM references are released after each tool execution."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        finally:
+            release_word()
+    return wrapper
+
 # Register tool layers (VBA module removed — requires unsafe trust setting)
 register_lifecycle_tools(mcp)
 
@@ -46,7 +59,7 @@ for tool_func in [
     word_get_document_structure, word_read_table,
     word_execute_macro, word_record_lesson
 ]:
-    mcp.tool()(tool_func)
+    mcp.tool()(com_cleanup_decorator(tool_func))
 
 
 def main():

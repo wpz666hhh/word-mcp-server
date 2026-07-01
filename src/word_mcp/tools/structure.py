@@ -4,12 +4,17 @@ import json
 from ..com_manager import get_word_app
 from ..utils import format_error
 
-def word_get_document_structure(include_paragraphs: bool = False, max_paragraphs: int = 100) -> str:
-    """获取文档结构（标题大纲，可选包含段落），返回精简的 Markdown 格式。
+def word_get_document_structure(
+    include_paragraphs: bool = False,
+    max_paragraphs: int = 100,
+    format: str = "markdown"
+) -> str:
+    """获取文档结构（标题大纲，可选包含段落），返回精简的 Markdown 格式或 JSON 数组。
     
     Args:
         include_paragraphs: 是否包含普通段落，默认False只返回标题。
         max_paragraphs: 最大读取段落数，防止超长文档卡死。
+        format: 返回格式 — "markdown" (精简的 Markdown 格式，默认), "json" (JSON 数组)
     """
     try:
         app = get_word_app()
@@ -33,16 +38,26 @@ def word_get_document_structure(include_paragraphs: bool = False, max_paragraphs
             if is_heading or include_paragraphs:
                 text = p.Range.Text.strip()
                 if text:
-                    tag = f"[{style_name}]" if style_name else "[Paragraph]"
                     text_snippet = text[:50].replace('\n', ' ').replace('\r', '') + ("..." if len(text) > 50 else "")
-                    structure.append(f"{i}. {tag} {text_snippet}")
+                    if format == "json":
+                        structure.append({
+                            "index": i,
+                            "type": "heading" if is_heading else "paragraph",
+                            "style": style_name,
+                            "text": text_snippet
+                        })
+                    else:
+                        tag = f"[{style_name}]" if style_name else "[Paragraph]"
+                        structure.append(f"{i}. {tag} {text_snippet}")
                     
                     if not is_heading:
                         count += 1
                         
         if not structure:
-            return "文档为空或没有匹配的结构。"
+            return "[]" if format == "json" else "文档为空或没有匹配的结构。"
             
+        if format == "json":
+            return json.dumps(structure, ensure_ascii=False, indent=2)
         return "\n".join(structure)
     except Exception as e:
         return format_error("获取文档结构", e)

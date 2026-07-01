@@ -103,15 +103,30 @@ def get_word_app(visible: bool = True) -> object:
 
 
 def release_word():
-    """Release the COM reference. Does NOT close the Word application."""
-    global _word_app, _coinit_done
-    _word_app = None
+    """Release the COM reference. Does NOT close the Word application unless it is empty."""
+    global _word_app, _coinit_done, _created_by_us
+    if _word_app is not None:
+        try:
+            # 如果是我们创建的，且目前没有打开任何文档，为了避免残留后台僵尸进程，我们主动退出它
+            if _created_by_us:
+                try:
+                    if _word_app.Documents.Count == 0:
+                        logger.info("No documents open in our spawned instance, quitting Word to prevent zombie processes...")
+                        _word_app.Quit(0)  # wdDoNotSaveChanges = 0
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        _word_app = None
+        _created_by_us = False
+
     if _coinit_done:
         try:
             pythoncom.CoUninitialize()
         except Exception:
             pass
         _coinit_done = False
+
 
 @atexit.register
 def _cleanup_word():

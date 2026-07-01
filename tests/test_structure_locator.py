@@ -28,10 +28,10 @@ class TestStructureAndLocator:
         from word_mcp.tools.text import word_apply_style
         word_apply_style(range_spec={"type": "paragraph", "index": 1}, style_name="Heading 1")
         
-        res = word_get_document_structure(include_paragraphs=True)
-        assert "Title" in res
+        res = word_get_document_structure(include_paragraphs=True, format="json")
         data = json.loads(res)
         assert len(data) >= 2
+        assert "Title" in data[0]["text"]
         assert data[0]["type"] == "heading"
         
     def test_delete_and_replace_target(self):

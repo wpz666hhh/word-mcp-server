@@ -205,13 +205,25 @@ def word_activate_document(index: int) -> str:
         return format_error("激活文档", e)
 
 
+from functools import wraps
+from ..com_manager import release_word
+
+def com_cleanup_decorator(func):
+    """Decorator to ensure COM references are released after each tool execution."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        finally:
+            release_word()
+    return wrapper
+
+
 def register_lifecycle_tools(mcp: FastMCP):
     """Register all L1 document lifecycle tools on the MCP server."""
-    mcp.tool()(word_open)
-    mcp.tool()(word_create)
-    mcp.tool()(word_save)
-    mcp.tool()(word_save_as_pdf)
-    mcp.tool()(word_close)
-    mcp.tool()(word_get_active_document)
-    mcp.tool()(word_list_documents)
-    mcp.tool()(word_activate_document)
+    for tool_func in [
+        word_open, word_create, word_save, word_save_as_pdf,
+        word_close, word_get_active_document, word_list_documents,
+        word_activate_document
+    ]:
+        mcp.tool()(com_cleanup_decorator(tool_func))
