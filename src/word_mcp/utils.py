@@ -28,6 +28,18 @@ def ensure_dir(file_path: str) -> None:
     parent.mkdir(parents=True, exist_ok=True)
 
 
+# Common COM error code → user-friendly Chinese message
+_COM_ERROR_HINTS: dict[str, str] = {
+    "-2147221005": "无效的类字符串，请确保 Microsoft Word 已正确安装",
+    "-2147023179": "无法连接到 Word，请确保 Word 正在运行",
+    "-2146824040": "没有打开的文档",
+    "-2146823114": "文档为空或范围无效",
+    "-2146823091": "请求的表格不存在",
+    "-2146823115": "找不到请求的样式",
+    "-2146823596": "文件路径无效或无法访问",
+}
+
+
 def format_error(operation: str, error: Exception) -> str:
     """Format an exception into a user-friendly error message.
 
@@ -38,4 +50,21 @@ def format_error(operation: str, error: Exception) -> str:
     Returns:
         Formatted error string.
     """
-    return f"{operation}失败: {error}"
+    err_str = str(error)
+
+    # Try to match known COM error codes
+    for code, hint in _COM_ERROR_HINTS.items():
+        if code in err_str:
+            return f"{operation}失败: {hint}"
+
+    # Suppress low-level COM noise in user-facing messages
+    for noise in ["Command failed", "(-2147352567, '发生意外。'"]:
+        if noise in err_str:
+            # Extract just the human-readable part after the COM noise
+            parts = err_str.split(", ")
+            for p in parts:
+                if "wdmain" not in p and "0x" not in p and len(p) > 10 and "，" in p:
+                    return f"{operation}失败: {p.strip(\"'\")(\")}"
+            return f"{operation}失败: 请检查 Word 窗口状态后重试"
+
+    return f"{operation}失败: {err_str}"

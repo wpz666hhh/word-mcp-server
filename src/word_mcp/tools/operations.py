@@ -517,28 +517,93 @@ async def word_find_replace(
     find_text: str,
     replace_text: str,
     match_case: bool = False,
+    match_wildcards: bool = False,
+    find_font_name: str | None = None,
+    replace_font_name: str | None = None,
+    find_font_size: float | None = None,
+    replace_font_size: float | None = None,
+    find_font_color: str | None = None,
+    replace_font_color: str | None = None,
+    find_bold: bool | None = None,
+    replace_bold: bool | None = None,
 ) -> str:
-    """在全文范围内查找并替换文字。
+    """在全文范围内查找并替换文字，支持按字体筛选和替换。
 
     Args:
         find_text: 要查找的文字
         replace_text: 替换后的文字
         match_case: 是否区分大小写
+        match_wildcards: 是否使用通配符（如 "?" 匹配单个字符，"*" 匹配任意字符串）
+        find_font_name: 查找限定字体，如 "Times New Roman"（只查找此字体的匹配项）
+        replace_font_name: 替换后设置的字体，如 "宋体"
+        find_font_size: 查找限定字号（磅）
+        replace_font_size: 替换后设置的字号（磅）
+        find_font_color: 查找限定颜色，RGB十六进制如 "FF0000"（红色）
+        replace_font_color: 替换后设置的颜色，RGB十六进制
+        find_bold: 查找限定加粗状态
+        replace_bold: 替换后设置的加粗状态
     """
     try:
         app = get_word_app()
         doc = app.ActiveDocument
 
         find = doc.Content.Find
+        find.ClearFormatting()
+        find.Replacement.ClearFormatting()
+
+        # --- Find criteria ---
         find.Text = find_text
         find.Replacement.Text = replace_text
         find.MatchCase = match_case
+        find.MatchWildcards = match_wildcards
         find.Forward = True
         find.Wrap = 1  # wdFindContinue
 
+        # Font-matching on Find side
+        if find_font_name is not None or find_font_size is not None or \
+           find_font_color is not None or find_bold is not None:
+            find_font = find.Font
+            if find_font_name is not None:
+                find_font.Name = find_font_name
+            if find_font_size is not None:
+                find_font.Size = find_font_size
+            if find_font_color is not None:
+                hex_str = find_font_color.lstrip("#")
+                r = int(hex_str[0:2], 16)
+                g = int(hex_str[2:4], 16)
+                b = int(hex_str[4:6], 16)
+                find_font.Color = r + g * 256 + b * 65536
+            if find_bold is not None:
+                find_font.Bold = find_bold
+
+        # Font-formatting on Replace side
+        if replace_font_name is not None or replace_font_size is not None or \
+           replace_font_color is not None or replace_bold is not None:
+            repl_font = find.Replacement.Font
+            if replace_font_name is not None:
+                repl_font.Name = replace_font_name
+            if replace_font_size is not None:
+                repl_font.Size = replace_font_size
+            if replace_font_color is not None:
+                hex_str = replace_font_color.lstrip("#")
+                r = int(hex_str[0:2], 16)
+                g = int(hex_str[2:4], 16)
+                b = int(hex_str[4:6], 16)
+                repl_font.Color = r + g * 256 + b * 65536
+            if replace_bold is not None:
+                repl_font.Bold = replace_bold
+
         find.Execute(Replace=2)  # wdReplaceAll
 
-        return f"已完成查找替换: '{find_text}' → '{replace_text}'"
+        # Build a descriptive result message
+        parts = [f"'{find_text}' → '{replace_text}'"]
+        if find_font_name:
+            parts.append(f"查找字体={find_font_name}")
+        if replace_font_name:
+            parts.append(f"替换字体={replace_font_name}")
+        if match_wildcards:
+            parts.append("通配符模式")
+        return f"已完成查找替换: {', '.join(parts)}"
     except Exception as e:
         return format_error("查找替换", e)
 
@@ -704,6 +769,95 @@ async def word_set_header_footer(
         return format_error(f"设置{type}", e)
 
 
+async def word_format_text_by_find(
+    find_text: str,
+    font_name: str | None = None,
+    font_size: float | None = None,
+    bold: bool | None = None,
+    italic: bool | None = None,
+    underline: bool | None = None,
+    color: str | None = None,
+    match_case: bool = False,
+    match_wildcards: bool = False,
+    find_font_name: str | None = None,
+) -> str:
+    """查找特定文字并修改其格式（查找+格式化的组合操作）。
+
+    Args:
+        find_text: 要查找的文字
+        font_name: 设置字体名称，如 "宋体"
+        font_size: 设置字号（磅）
+        bold: 是否加粗
+        italic: 是否斜体
+        underline: 是否下划线
+        color: 字体颜色，RGB十六进制如 "FF0000"
+        match_case: 是否区分大小写
+        match_wildcards: 是否使用通配符
+        find_font_name: 查找限定字体（只修改此字体的匹配项）
+    """
+    try:
+        app = get_word_app()
+        doc = app.ActiveDocument
+
+        find = doc.Content.Find
+        find.ClearFormatting()
+        find.Replacement.ClearFormatting()
+
+        find.Text = find_text
+        find.Replacement.Text = find_text  # same text, just formatting
+        find.MatchCase = match_case
+        find.MatchWildcards = match_wildcards
+        find.Forward = True
+        find.Wrap = 1
+
+        # Find-side font filter
+        if find_font_name is not None:
+            find.Font.Name = find_font_name
+
+        # Replacement formatting
+        repl_font = find.Replacement.Font
+        set_any = False
+        changes = []
+        if font_name is not None:
+            repl_font.Name = font_name
+            changes.append(f"字体={font_name}")
+            set_any = True
+        if font_size is not None:
+            repl_font.Size = font_size
+            changes.append(f"字号={font_size}")
+            set_any = True
+        if bold is not None:
+            repl_font.Bold = bold
+            changes.append(f"加粗={'是' if bold else '否'}")
+            set_any = True
+        if italic is not None:
+            repl_font.Italic = italic
+            changes.append(f"斜体={'是' if italic else '否'}")
+            set_any = True
+        if underline is not None:
+            repl_font.Underline = 1 if underline else 0
+            changes.append(f"下划线={'是' if underline else '否'}")
+            set_any = True
+        if color is not None:
+            hex_str = color.lstrip("#")
+            r = int(hex_str[0:2], 16)
+            g = int(hex_str[2:4], 16)
+            b = int(hex_str[4:6], 16)
+            repl_font.Color = r + g * 256 + b * 65536
+            changes.append(f"颜色=#{color}")
+            set_any = True
+
+        if not set_any:
+            return "未指定任何格式参数"
+
+        find.Execute(Replace=2)
+
+        constraint = f"（限定字体={find_font_name}）" if find_font_name else ""
+        return f"已修改 '{find_text}'{constraint} 的格式: {', '.join(changes)}"
+    except Exception as e:
+        return format_error("按查找格式化", e)
+
+
 def register_operation_tools(mcp: FastMCP):
     """Register all L2 atomic operation tools on the MCP server."""
     mcp.tool()(word_insert_text)
@@ -721,6 +875,9 @@ def register_operation_tools(mcp: FastMCP):
     mcp.tool()(word_insert_image)
     mcp.tool()(word_insert_page_break)
     mcp.tool()(word_find_replace)
+
+    # === New: Find + Format combo ===
+    mcp.tool()(word_format_text_by_find)
 
     # === Batch C: Page Setup, Header/Footer ===
     mcp.tool()(word_set_page_setup)

@@ -110,7 +110,8 @@ iex "& { $(curl -fsL https://raw.githubusercontent.com/wpz666hhh/word-mcp-server
 | `word_insert_page_break` | 插入分页符 |
 | `word_set_page_setup` | 设置页面布局（边距、方向、纸张） |
 | `word_set_header_footer` | 设置页眉/页脚（多节、页码样式、对齐） |
-| `word_find_replace` | 查找替换 |
+| `word_find_replace` | 查找替换（支持按字体筛选和替换字号、颜色等） |
+| `word_format_text_by_find` | 查找特定文字并修改其格式（查找+格式化一步完成） |
 | `word_get_content` | 读取文档内容 |
 | `word_get_selection` | 获取用户选中文字 |
 | `word_select` | 选中区域（可见高亮） |
@@ -133,6 +134,34 @@ iex "& { $(curl -fsL https://raw.githubusercontent.com/wpz666hhh/word-mcp-server
 ```
 
 整个过程 Word 窗口可见，用户可实时看到每一步变化。
+
+### 实用技巧：按字体查找替换
+
+**场景：** 文档中有些双引号是 Times New Roman 字体，希望改为宋体。
+
+```bash
+# 传统做法（需要多次操作）:
+# 1. word_get_content → 查看
+# 2. PowerShell 辅助修复字体
+
+# 新做法（一步到位）:
+word_find_replace(
+    find_text="“",         # 左双引号
+    replace_text="“",      # 内容不变
+    find_font_name="Times New Roman",
+    replace_font_name="宋体"
+)
+```
+
+也可以使用组合工具一步完成：
+
+```
+word_format_text_by_find(
+    find_text="“",
+    font_name="宋体",
+    find_font_name="Times New Roman"
+)
+```
 
 ## 关于 VBA
 
