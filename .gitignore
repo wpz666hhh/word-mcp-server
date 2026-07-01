@@ -5,3 +5,5 @@ __pycache__/
 *.egg-info/
 dist/
 .codegraph/
+.agents/
+temp_work/

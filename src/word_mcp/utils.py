@@ -41,7 +41,7 @@ _COM_ERROR_HINTS: dict[str, str] = {
 
 
 def format_error(operation: str, error: Exception) -> str:
-    """Format an exception into a user-friendly error message.
+    """Format an exception into a user-friendly error message, preserving original details for debugging.
 
     Args:
         operation: What was being attempted (e.g. "打开文档").
@@ -51,21 +51,22 @@ def format_error(operation: str, error: Exception) -> str:
         Formatted error string.
     """
     err_str = str(error)
+    details = f" (原始错误: {err_str})"
 
     # Try to match known COM error codes
     for code, hint in _COM_ERROR_HINTS.items():
         if code in err_str:
-            return f"{operation}失败: {hint}"
+            return f"{operation}失败: {hint}{details}"
 
-    # Suppress low-level COM noise in user-facing messages
+    # Suppress low-level COM noise in user-facing messages but keep original details
     for noise in ["Command failed", "(-2147352567, '发生意外。'"]:
         if noise in err_str:
             # Extract just the human-readable part after the COM noise
             parts = err_str.split(", ")
             for p in parts:
-                if "wdmain" not in p and "0x" not in p and len(p) > 10 and "，" in p:
+                if "wdmain" not in p and "0x" not in p and len(p) > 10 and ("，" in p or "的" in p):
                     clean_p = p.strip("'\"")
-                    return f"{operation}失败: {clean_p}"
-            return f"{operation}失败: 请检查 Word 窗口状态后重试"
+                    return f"{operation}失败: {clean_p}{details}"
+            return f"{operation}失败: 请检查 Word 窗口状态后重试{details}"
 
     return f"{operation}失败: {err_str}"

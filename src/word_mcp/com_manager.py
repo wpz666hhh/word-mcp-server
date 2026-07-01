@@ -39,10 +39,34 @@ def get_word_app(visible: bool = True) -> object:
     if _word_app is not None:
         try:
             _ = _word_app.Name
-            # Ensure visibility setting matches request
-            if visible:
-                _word_app.Visible = True
-            return _word_app
+            
+            # 如果缓存的是我们自己创建的空实例（无文档），且检测到用户在外部打开了文档，
+            # 我们主动释放并退出这个空实例，以便后续重新 GetObject 连接到用户的活动 Word 实例。
+            if _created_by_us:
+                try:
+                    if _word_app.Documents.Count == 0:
+                        import win32gui
+                        hwnd = win32gui.FindWindow('OPUSAPP', None)
+                        if hwnd:
+                            title = win32gui.GetWindowText(hwnd)
+                            # 如果窗口标题包含 " - Word" 且不是默认的空窗口（如 "Microsoft Word" 或 "Word"），
+                            # 说明用户有打开的文档。而我们自己的实例 Documents.Count == 0，说明这不是我们的实例。
+                            if title and " - Word" in title and not title.startswith("Microsoft Word") and title != "Word":
+                                logger.info(f"Detected user Word window '{title}' but cached instance is empty. Re-attaching...")
+                                try:
+                                    _word_app.Quit(0)
+                                except Exception:
+                                    pass
+                                _word_app = None
+                                _created_by_us = False
+                except Exception as ex:
+                    logger.debug(f"Error checking active window: {ex}")
+
+            if _word_app is not None:
+                # Ensure visibility setting matches request
+                if visible:
+                    _word_app.Visible = True
+                return _word_app
         except Exception:
             logger.info("Word COM connection lost, reconnecting...")
             _word_app = None
@@ -55,6 +79,7 @@ def get_word_app(visible: bool = True) -> object:
     # Try attaching to an existing Word process first
     try:
         _word_app = win32com.client.GetObject(Class="Word.Application")
+        _created_by_us = False
         logger.info("Attached to existing Word process")
     except Exception:
         try:
